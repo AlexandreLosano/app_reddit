@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reddit Visual Viewer</title>
+
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- React e React DOM via CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+  <!-- Babel Standalone para JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- Lucide Icons (compatível com CDN) -->
+  <script type="text/babel" data-type="module">
+    const { useState, useEffect, useCallback, useRef } = React;
+
+    // Ícones simplificados (substituindo lucide-react)
+    const Play = () => (
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+      </svg>
+    );
+
+    const Pause = () => (
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="6" y="4" width="4" height="16"></rect>
+        <rect x="14" y="4" width="4" height="16"></rect>
+      </svg>
+    );
+
+    const SkipForward = () => (
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="5 4 15 12 5 20 5 4"></polygon>
+        <line x1="19" y1="5" x2="19" y2="19"></line>
+      </svg>
+    );
+
+    const Menu = () => (
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
+      </svg>
+    );
+
+    const RefreshCw = ({ className }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <polyline points="23 4 23 10 17 10"></polyline>
+        <polyline points="1 20 1 14 7 14"></polyline>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+      </svg>
+    );
+
+    const Bug = ({ className }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <rect x="8" y="6" width="8" height="14" rx="4"></rect>
+        <path d="m8 6-3-3M16 6l3-3M4 12h3m10 0h3M4 18h3m10 0h3"></path>
+      </svg>
+    );
+
+    const Edit = ({ className }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+      </svg>
+    );
+
+    const Check = ({ className }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+    );
+
+    const List = ({ className }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <line x1="8" y1="6" x2="21" y2="6"></line>
+        <line x1="8" y1="12" x2="21" y2="12"></line>
+        <line x1="8" y1="18" x2="21" y2="18"></line>
+        <line x1="3" y1="6" x2="3.01" y2="6"></line>
+        <line x1="3" y1="12" x2="3.01" y2="12"></line>
+        <line x1="3" y1="18" x2="3.01" y2="18"></line>
+      </svg>
+    );
+
+    const X = ({ className }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    );
+
+    const Plus = ({ className }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+    );
+
+    const Eye = ({ className }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+        <circle cx="12" cy="12" r="3"></circle>
+      </svg>
+    );
+
+    const EyeOff = ({ className }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+        <line x1="1" y1="1" x2="23" y2="23"></line>
+      </svg>
+    );
+
+    function RedditVisualViewer() {
+      const [posts, setPosts] = useState([]);
+      const [currentPost, setCurrentPost] = useState(null);
+      const [isPlaying, setIsPlaying] = useState(false);
+      const [loading, setLoading] = useState(true);
+      const [error, setError] = useState(null);
+      const [interval, setIntervalTime] = useState(5);
+      const [sortBy, setSortBy] = useState('hot');
+      const [nsfwFilter, setNsfwFilter] = useState('all');
+      const [debugInfo, setDebugInfo] = useState([]);
+      const [showManageSubreddits, setShowManageSubreddits] = useState(false);
+      const [newSubreddit, setNewSubreddit] = useState('');
+      const [sidebarOpen, setSidebarOpen] = useState(true);
+      const [editingSubId, setEditingSubId] = useState(null);
+      const [editingName, setEditingName] = useState('');
+
+      // Estado dos subreddits - carregados da API
+      const [subredditsList, setSubredditsList] = useState([]);
+
+      // Subreddits visíveis (para compatibilidade com o código existente)
+      const visualSubreddits = subredditsList.filter(sub => sub.visible).map(sub => sub.name);
+
+      // Função de debug (definida antes de ser usada)
+      const addDebugLog = useCallback((message) => {
+        const timestamp = new Date().toLocaleTimeString();
+        setDebugInfo(prev => [...prev, `[${timestamp}] ${message}`]);
+        console.log(`[${timestamp}] ${message}`);
+      }, []);
+
+      // Carregar subreddits da API ao montar o componente
+      useEffect(() => {
+        const loadSubreddits = async () => {
+          try {
+            const response = await fetch('http://localhost:3333/api/subreddits');
+            if (response.ok) {
+              const data = await response.json();
+              setSubredditsList(data);
+              addDebugLog(`✅ Carregados ${data.length} subreddits da API`);
+            } else {
+              addDebugLog('⚠️ Erro ao carregar subreddits da API');
+            }
+          } catch (error) {
+            addDebugLog(`❌ Erro ao conectar à API: ${error.message}`);
+          }
+        };
+        loadSubreddits();
+      }, [addDebugLog]);
+
+      const addSubreddit = async () => {
+        const cleanName = newSubreddit.trim().replace(/^r\//, '');
+
+        if (!cleanName) {
+          addDebugLog('❌ Digite um nome de subreddit');
+          return;
+        }
+
+        if (subredditsList.some(s => s.name === cleanName)) {
+          addDebugLog(`❌ r/${cleanName} já está na lista`);
+          return;
+        }
+
+        try {
+          const response = await fetch('http://localhost:3333/api/subreddits', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: cleanName, visible: true })
+          });
+
+          if (response.ok) {
+            const newSub = await response.json();
+            setSubredditsList([...subredditsList, newSub]);
+            setNewSubreddit('');
+            addDebugLog(`✅ Adicionado: r/${cleanName}`);
+          } else {
+            addDebugLog(`❌ Erro ao adicionar r/${cleanName}: ${response.status}`);
+          }
+        } catch (error) {
+          addDebugLog(`❌ Erro ao adicionar: ${error.message}`);
+        }
+      };
+
+      const removeSubreddit = async (subName) => {
+        const sub = subredditsList.find(s => s.name === subName);
+        if (!sub) return;
+
+        try {
+          const response = await fetch(`http://localhost:3333/api/subreddits/${sub.id}`, {
+            method: 'DELETE'
+          });
+
+          if (response.ok) {
+            const newList = subredditsList.filter(s => s.name !== subName);
+            setSubredditsList(newList);
+
+            // Limpar posts relacionados ao subreddit removido
+            const remainingPosts = posts.filter(post => post.subreddit !== subName);
+            setPosts(remainingPosts);
+
+            if (remainingPosts.length === 0 || currentPost?.subreddit === subName) {
+              setCurrentPost(remainingPosts.length > 0 ? remainingPosts[0] : null);
+            }
+
+            addDebugLog(`🗑️ Removido: r/${subName}`);
+          } else {
+            addDebugLog(`❌ Erro ao remover r/${subName}`);
+          }
+        } catch (error) {
+          addDebugLog(`❌ Erro ao remover: ${error.message}`);
+        }
+      };
+
+      const toggleSubredditVisibility = async (subName) => {
+        const sub = subredditsList.find(s => s.name === subName);
+        if (!sub) return;
+
+        const newVisible = !sub.visible;
+
+        try {
+          const response = await fetch(`http://localhost:3333/api/subreddits/${sub.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ visible: newVisible })
+          });
+
+          if (response.ok) {
+            const newList = subredditsList.map(s =>
+              s.name === subName ? { ...s, visible: newVisible } : s
+            );
+            setSubredditsList(newList);
+
+            // Se estamos ocultando, remover posts desse subreddit
+            if (!newVisible) {
+              const remainingPosts = posts.filter(post => post.subreddit !== subName);
+              setPosts(remainingPosts);
+
+              if (remainingPosts.length === 0 || currentPost?.subreddit === subName) {
+                setCurrentPost(remainingPosts.length > 0 ? remainingPosts[0] : null);
+              }
+              addDebugLog(`👁️ Ocultado: r/${subName}`);
+            } else {
+              addDebugLog(`👁️ Exibido: r/${subName}`);
+            }
+          } else {
+            addDebugLog(`❌ Erro ao alterar visibilidade de r/${subName}`);
+          }
+        } catch (error) {
+          addDebugLog(`❌ Erro ao alterar visibilidade: ${error.message}`);
+        }
+      };
+
+      const clearAllSubreddits = async () => {
+        if (confirm('Remover TODOS os subreddits da lista? Você poderá adicionar novos depois.')) {
+          try {
+            // Remover todos os subreddits da API
+            for (const sub of subredditsList) {
+              await fetch(`http://localhost:3333/api/subreddits/${sub.id}`, {
+                method: 'DELETE'
+              });
+            }
+            setSubredditsList([]);
+            setPosts([]);
+            setCurrentPost(null);
+            addDebugLog('🗑️ Todos os subreddits removidos');
+          } catch (error) {
+            addDebugLog(`❌ Erro ao limpar subreddits: ${error.message}`);
+          }
+        }
+      };
+
+      const startEditingSubreddit = (sub) => {
+        setEditingSubId(sub.id);
+        setEditingName(sub.name);
+      };
+
+      const cancelEditingSubreddit = () => {
+        setEditingSubId(null);
+        setEditingName('');
+      };
+
+      const saveEditingSubreddit = async (subId) => {
+        const cleanName = editingName.trim().replace(/^r\//, '');
+
+        if (!cleanName) {
+          addDebugLog('❌ Nome não pode ser vazio');
+          return;
+        }
+
+        if (subredditsList.some(s => s.name === cleanName && s.id !== subId)) {
+          addDebugLog(`❌ r/${cleanName} já existe na lista`);
+          return;
+        }
+
+        try {
+          // Deletar o antigo
+          await fetch(`http://localhost:3333/api/subreddits/${subId}`, {
+            method: 'DELETE'
+          });
+
+          // Criar novo com o nome atualizado
+          const response = await fetch('http://localhost:3333/api/subreddits', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: cleanName, visible: true })
+          });
+
+          if (response.ok) {
+            const newSub = await response.json();
+            const newList = subredditsList.map(s => s.id === subId ? newSub : s);
+            setSubredditsList(newList);
+            setEditingSubId(null);
+            setEditingName('');
+            addDebugLog(`✏️ Editado para: r/${cleanName}`);
+          } else {
+            addDebugLog(`❌ Erro ao editar subreddit`);
+          }
+        } catch (error) {
+          addDebugLog(`❌ Erro ao editar: ${error.message}`);
+        }
+      };
+
+      const getDemoData = () => {
+        addDebugLog('📦 Usando dados de demonstração (rede bloqueada)');
+        return {
+          data: {
+            children: [
+              {
+                data: {
+                  id: 'demo1',
+                  title: 'Beautiful Sunset Over Mountains - DEMO MODE',
+                  subreddit: 'pics',
+                  url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4',
+                  post_hint: 'image',
+                  over_18: false,
+                  ups: 15420,
+                  num_comments: 234,
+                  permalink: '/r/pics/demo1'
+                }
+              },
+              {
+                data: {
+                  id: 'demo2',
+                  title: 'Amazing Wildlife Photography - DEMO MODE',
+                  subreddit: 'pics',
+                  url: 'https://images.unsplash.com/photo-1535083783855-76ae62b2914e',
+                  post_hint: 'image',
+                  over_18: false,
+                  ups: 8900,
+                  num_comments: 156,
+                  permalink: '/r/pics/demo2'
+                }
+              },
+              {
+                data: {
+                  id: 'demo3',
+                  title: 'City Lights at Night - DEMO MODE',
+                  subreddit: 'pics',
+                  url: 'https://images.unsplash.com/photo-1514565131-fce0801e5785',
+                  post_hint: 'image',
+                  over_18: false,
+                  ups: 12300,
+                  num_comments: 189,
+                  permalink: '/r/pics/demo3'
+                }
+              }
+            ]
+          }
+        };
+      };
+
+      const fetchPosts = async () => {
+        if (visualSubreddits.length === 0) {
+          addDebugLog('⚠️ Nenhum subreddit na lista para buscar');
+          setError('Adicione subreddits à sua lista primeiro');
+          setLoading(false);
+          return;
+        }
+
+        setLoading(true);
+        setError(null);
+        addDebugLog(`🚀 Buscando ${visualSubreddits.length} subreddits (Sort: ${sortBy}, NSFW: ${nsfwFilter})`);
+
+        let allPosts = [];
+
+        try {
+          // Buscar de cada subreddit usando APENAS o backend local (com cache)
+          for (const subreddit of visualSubreddits) {
+            try {
+              const url = `http://localhost:3333/api/reddit/${subreddit}/${sortBy}?limit=50&nsfw=${nsfwFilter}`;
+
+              const response = await fetch(url);
+
+              if (!response.ok) {
+                addDebugLog(`❌ r/${subreddit}: HTTP ${response.status}`);
+                continue;
+              }
+
+              const data = await response.json();
+
+              if (!data?.data?.children) {
+                addDebugLog(`⚠️ r/${subreddit}: Sem dados`);
+                continue;
+              }
+
+              const subredditPosts = data.data.children
+                .map(child => child.data)
+                .filter(post => {
+                  const hasImage = post.post_hint === 'image' ||
+                                  (post.url && post.url.match(/\.(jpeg|jpg|gif|png|webp)$/i));
+                  const hasVideo = post.is_video;
+                  const hasGif = post.url && post.url.includes('.gif');
+
+                  if (!hasImage && !hasVideo && !hasGif) return false;
+
+                  // Aplicar filtro NSFW
+                  if (nsfwFilter === 'sfw' && post.over_18) return false;
+                  if (nsfwFilter === 'nsfw' && !post.over_18) return false;
+
+                  return true;
+                });
+
+              allPosts = [...allPosts, ...subredditPosts];
+              addDebugLog(`✅ r/${subreddit}: ${subredditPosts.length} posts`);
+
+            } catch (subErr) {
+              addDebugLog(`❌ r/${subreddit}: ${subErr.message}`);
+              continue;
+            }
+          }
+
+          // Se conseguiu posts, mostrar
+          if (allPosts.length > 0) {
+            addDebugLog(`✅ Total: ${allPosts.length} posts carregados`);
+
+            // Embaralhar posts para misturar subreddits
+            const shuffled = allPosts.sort(() => Math.random() - 0.5);
+            setPosts(shuffled);
+
+            const randomPost = shuffled[Math.floor(Math.random() * shuffled.length)];
+            setCurrentPost(randomPost);
+            addDebugLog(`📍 r/${randomPost.subreddit} - ${randomPost.title.substring(0, 50)}...`);
+
+            setLoading(false);
+            return;
+          }
+
+          throw new Error('Nenhum post encontrado');
+
+        } catch (error) {
+          addDebugLog(`❌ Erro: ${error.message}`);
+        }
+
+        // Fallback para modo demo
+        addDebugLog('⚠️ Ativando MODO DEMO');
+        setError('Não foi possível carregar posts. Usando modo demonstração.');
+
+        const demoData = getDemoData();
+        const visualPosts = demoData.data.children.map(child => child.data);
+
+        setPosts(visualPosts);
+        if (visualPosts.length > 0) {
+          const randomPost = visualPosts[Math.floor(Math.random() * visualPosts.length)];
+          setCurrentPost(randomPost);
+          addDebugLog(`✅ MODO DEMO ativo - ${visualPosts.length} posts`);
+        }
+
+        setLoading(false);
+      };
+
+      const nextPost = useCallback(() => {
+        if (posts.length > 0) {
+          const randomIndex = Math.floor(Math.random() * posts.length);
+          setCurrentPost(posts[randomIndex]);
+          addDebugLog(`Próximo post: ${posts[randomIndex].title.substring(0, 50)}...`);
+        }
+      }, [posts, addDebugLog]);
+
+      // Buscar posts apenas quando mudar sortBy ou nsfwFilter manualmente
+      const hasInitialFetch = useRef(false);
+      const lastSubCount = useRef(0);
+
+      useEffect(() => {
+        if (visualSubreddits.length > 0 && !hasInitialFetch.current) {
+          // Primeira busca apenas
+          hasInitialFetch.current = true;
+          lastSubCount.current = visualSubreddits.length;
+          fetchPosts();
+        }
+      }, [visualSubreddits.length]);
+
+      // Quando mudar sort ou nsfw, buscar novamente
+      const prevSort = useRef(sortBy);
+      const prevNsfw = useRef(nsfwFilter);
+      useEffect(() => {
+        if (hasInitialFetch.current && visualSubreddits.length > 0) {
+          if (prevSort.current !== sortBy || prevNsfw.current !== nsfwFilter) {
+            prevSort.current = sortBy;
+            prevNsfw.current = nsfwFilter;
+            fetchPosts();
+          }
+        }
+      }, [sortBy, nsfwFilter, visualSubreddits.length]);
+
+      useEffect(() => {
+        let timer;
+        if (isPlaying && posts.length > 0) {
+          timer = setInterval(nextPost, interval * 1000);
+        }
+        return () => clearInterval(timer);
+      }, [isPlaying, interval, nextPost, posts.length]);
+
+      const renderMedia = () => {
+        if (!currentPost) return null;
+
+        const maxHeightClass = sidebarOpen ? 'max-h-[65vh]' : 'max-h-[75vh]';
+
+        if (currentPost.is_video && currentPost.media?.reddit_video) {
+          return (
+            <video
+              key={currentPost.id}
+              className={`max-w-full ${maxHeightClass} w-auto h-auto mx-auto`}
+              src={currentPost.media.reddit_video.fallback_url}
+              autoPlay
+              loop
+              muted
+              playsInline
+              style={{ objectFit: 'contain' }}
+            />
+          );
+        }
+
+        if (currentPost.url) {
+          return (
+            <img
+              key={currentPost.id}
+              src={currentPost.url}
+              alt={currentPost.title}
+              className={`max-w-full ${maxHeightClass} w-auto h-auto mx-auto`}
+              style={{ objectFit: 'contain' }}
+              onError={(e) => {
+                addDebugLog(`Erro ao carregar imagem: ${currentPost.url}`);
+                e.target.style.display = 'none';
+              }}
+            />
+          );
+        }
+
+        return null;
+      };
+
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex relative">
+          {/* Sidebar Toggle Button */}
+          {!sidebarOpen && (
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="fixed top-4 left-4 z-50 p-3 rounded-lg bg-black/60 backdrop-blur-sm border border-white/20 hover:bg-black/80 transition-colors shadow-lg"
+              title="Mostrar menu"
+            >
+              <Menu />
+            </button>
+          )}
+
+          {/* Overlay (Mobile) */}
+          {sidebarOpen && (
+            <div
+              className="fixed inset-0 bg-black/50 z-30 lg:hidden"
+              onClick={() => setSidebarOpen(false)}
+            ></div>
+          )}
+
+          {/* Sidebar Lateral */}
+          <div className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} fixed lg:relative inset-y-0 left-0 z-40 w-80 bg-black/40 backdrop-blur-sm border-r border-white/10 flex flex-col transition-transform duration-300 ease-in-out`}>
+            {/* Header da Sidebar */}
+            <div className="p-6 border-b border-white/10">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <h1 className="text-2xl font-bold bg-gradient-to-r from-orange-500 to-pink-500 bg-clip-text text-transparent">
+                    Reddit Visual Viewer
+                  </h1>
+                  <p className="text-sm text-gray-400 mt-2">
+                    {currentPost ? `r/${currentPost.subreddit}` : 'Carregando...'}
+                    {currentPost?.title?.includes('DEMO MODE') && (
+                      <span className="ml-2 px-2 py-0.5 bg-yellow-500/20 border border-yellow-500/50 rounded text-xs text-yellow-300">
+                        🎭 DEMO
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSidebarOpen(false)}
+                  className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+                  title="Ocultar menu"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Controles */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Playback Controls */}
+              <div className="space-y-2">
+                <button
+                  onClick={() => setIsPlaying(!isPlaying)}
+                  className="w-full px-4 py-3 rounded-lg bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 transition-all flex items-center justify-center gap-3 font-medium"
+                >
+                  {isPlaying ? <Pause /> : <Play />}
+                  <span>{isPlaying ? 'Pausar' : 'Reproduzir'}</span>
+                </button>
+                <button
+                  onClick={nextPost}
+                  className="w-full px-4 py-3 rounded-lg bg-white/10 hover:bg-white/20 transition-all flex items-center justify-center gap-3"
+                >
+                  <SkipForward />
+                  <span>Próximo Post</span>
+                </button>
+                <button
+                  onClick={fetchPosts}
+                  disabled={loading}
+                  className="w-full px-4 py-3 rounded-lg bg-white/10 hover:bg-white/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+                >
+                  <RefreshCw className={loading ? 'animate-spin' : ''} />
+                  <span>{loading ? 'Atualizando...' : 'Buscar Novos'}</span>
+                </button>
+              </div>
+
+              {/* Divider */}
+              <div className="border-t border-white/10"></div>
+
+              {/* Settings */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-gray-300">
+                    Subreddits Ativos ({visualSubreddits.length})
+                  </label>
+                  {visualSubreddits.length > 0 ? (
+                    <div className="w-full px-3 py-2 bg-purple-500/20 rounded-lg border border-purple-500/50 text-sm">
+                      <div className="flex flex-wrap gap-1">
+                        {visualSubreddits.slice(0, 2).map(sub => (
+                          <span key={sub} className="px-2 py-0.5 bg-purple-500/30 text-purple-200 rounded text-xs">
+                            r/{sub}
+                          </span>
+                        ))}
+                        {visualSubreddits.length > 2 && (
+                          <button
+                            onClick={() => setShowManageSubreddits(true)}
+                            className="px-2 py-0.5 bg-white/10 text-gray-300 rounded text-xs hover:bg-white/20"
+                          >
+                            +{visualSubreddits.length - 2} mais
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="w-full px-3 py-2 bg-red-500/20 rounded-lg border border-red-500/50 text-red-400 text-sm flex items-center justify-between">
+                      <span>Nenhum</span>
+                      <button
+                        onClick={() => setShowManageSubreddits(true)}
+                        className="text-xs underline hover:text-red-300"
+                      >
+                        Adicionar
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-gray-300">Ordenar por</label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="w-full px-3 py-2 bg-white/10 rounded-lg border border-white/20 focus:border-orange-500 focus:outline-none text-white"
+                  >
+                    <option value="hot" className="bg-slate-800">Hot</option>
+                    <option value="new" className="bg-slate-800">New</option>
+                    <option value="top" className="bg-slate-800">Top</option>
+                    <option value="rising" className="bg-slate-800">Rising</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-gray-300">Filtro NSFW</label>
+                  <select
+                    value={nsfwFilter}
+                    onChange={(e) => setNsfwFilter(e.target.value)}
+                    className="w-full px-3 py-2 bg-white/10 rounded-lg border border-white/20 focus:border-orange-500 focus:outline-none text-white"
+                  >
+                    <option value="sfw" className="bg-slate-800">✅ Apenas SFW</option>
+                    <option value="nsfw" className="bg-slate-800">🔞 Apenas NSFW</option>
+                    <option value="all" className="bg-slate-800">🔓 Todos</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-gray-300">
+                    Intervalo: {interval}s
+                  </label>
+                  <input
+                    type="range"
+                    min="3"
+                    max="30"
+                    value={interval}
+                    onChange={(e) => setIntervalTime(Number(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="border-t border-white/10"></div>
+
+              {/* Action Buttons */}
+              <div className="space-y-2">
+                <button
+                  onClick={() => setShowManageSubreddits(!showManageSubreddits)}
+                  className="w-full px-4 py-3 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 transition-colors border border-purple-500/50 flex items-center gap-3"
+                >
+                  <List className="w-5 h-5 text-purple-400" />
+                  <span>Gerenciar Subreddits</span>
+                </button>
+                <button
+                  onClick={() => window.alert(`Debug Info:\nPosts carregados: ${posts.length}\nPost atual: ${currentPost?.title || 'Nenhum'}\nFiltro NSFW: ${nsfwFilter}\n\nVeja o console (F12) para logs completos`)}
+                  className="w-full px-4 py-3 rounded-lg bg-green-500/20 hover:bg-green-500/30 transition-colors border border-green-500/50 flex items-center gap-3"
+                >
+                  <Bug className="w-5 h-5 text-green-400" />
+                  <span>Debug Info</span>
+                </button>
+              </div>
+
+              {/* Debug Logs */}
+              {debugInfo.length > 0 && (
+                <details className="bg-black/40 rounded-lg p-3 border border-gray-700">
+                  <summary className="cursor-pointer text-sm font-medium text-gray-400 hover:text-gray-300">
+                    📋 Logs ({debugInfo.length})
+                  </summary>
+                  <div className="mt-2 max-h-40 overflow-y-auto text-xs font-mono text-gray-500 space-y-1">
+                    {debugInfo.slice(-20).map((log, i) => (
+                      <div key={i}>{log}</div>
+                    ))}
+                  </div>
+                </details>
+              )}
+            </div>
+
+            {/* Footer da Sidebar */}
+            <div className="p-4 border-t border-white/10 bg-black/20 text-center text-xs text-gray-500">
+              <p>Posts: {posts.length}</p>
+              <p>Status: {loading ? 'Carregando...' : error ? 'Erro' : 'OK'}</p>
+            </div>
+          </div>
+
+          {/* Manage Subreddits Modal */}
+          {showManageSubreddits && (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl border border-white/20 max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+                {/* Header */}
+                <div className="p-6 border-b border-white/10 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">Gerenciar Subreddits</h2>
+                    <p className="text-sm text-gray-400 mt-1">
+                      {visualSubreddits.length} visíveis de {subredditsList.length} total
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowManageSubreddits(false)}
+                    className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Add New Subreddit */}
+                <div className="p-6 border-b border-white/10 bg-black/20">
+                  <label className="block text-sm font-medium mb-2 text-gray-300">Adicionar Novo Subreddit</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newSubreddit}
+                      onChange={(e) => setNewSubreddit(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && addSubreddit()}
+                      placeholder="Ex: wallpapers ou r/wallpapers"
+                      className="flex-1 px-4 py-2 bg-white/10 rounded-lg border border-white/20 focus:border-purple-500 focus:outline-none text-white placeholder-gray-500"
+                    />
+                    <button
+                      onClick={addSubreddit}
+                      className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 rounded-lg transition-all font-medium flex items-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Adicionar
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Digite o nome do subreddit (com ou sem "r/")
+                  </p>
+                </div>
+
+                {/* List of Subreddits */}
+                <div className="flex-1 overflow-y-auto p-6">
+                  <div className="grid grid-cols-1 gap-2">
+                    {subredditsList.map((sub) => (
+                      <div
+                        key={sub.id}
+                        className={`flex items-center justify-between p-3 rounded-lg transition-all border ${
+                          sub.visible
+                            ? 'bg-white/5 border-white/10 hover:bg-white/10'
+                            : 'bg-white/5 border-gray-600/30 opacity-50'
+                        }`}
+                      >
+                        {editingSubId === sub.id ? (
+                          // Modo de edição
+                          <>
+                            <div className="flex items-center gap-3 flex-1">
+                              <div className="w-2 h-2 rounded-full bg-yellow-400"></div>
+                              <input
+                                type="text"
+                                value={editingName}
+                                onChange={(e) => setEditingName(e.target.value)}
+                                onKeyPress={(e) => e.key === 'Enter' && saveEditingSubreddit(sub.id)}
+                                onKeyDown={(e) => e.key === 'Escape' && cancelEditingSubreddit()}
+                                className="flex-1 px-3 py-1.5 bg-white/10 rounded-lg border border-yellow-500/50 focus:border-yellow-500 focus:outline-none text-white"
+                                autoFocus
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => saveEditingSubreddit(sub.id)}
+                                className="p-1.5 rounded-lg bg-green-500/20 hover:bg-green-500/30 transition-colors border border-green-500/50 text-green-400"
+                                title="Salvar"
+                              >
+                                <Check className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={cancelEditingSubreddit}
+                                className="p-1.5 rounded-lg bg-gray-500/20 hover:bg-gray-500/30 transition-colors border border-gray-500/50 text-gray-400"
+                                title="Cancelar"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          // Modo normal
+                          <>
+                            <div className="flex items-center gap-3">
+                              <div className={`w-2 h-2 rounded-full ${sub.visible ? 'bg-purple-400' : 'bg-gray-500'}`}></div>
+                              <span className={`font-medium ${sub.visible ? 'text-white' : 'text-gray-400'}`}>r/{sub.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => startEditingSubreddit(sub)}
+                                className="p-1.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 transition-colors border border-blue-500/50 text-blue-400"
+                                title="Editar"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => toggleSubredditVisibility(sub.name)}
+                                className={`p-1.5 rounded-lg transition-colors border ${
+                                  sub.visible
+                                    ? 'bg-green-500/20 hover:bg-green-500/30 border-green-500/50 text-green-400'
+                                    : 'bg-gray-500/20 hover:bg-gray-500/30 border-gray-500/50 text-gray-400'
+                                }`}
+                                title={sub.visible ? 'Ocultar' : 'Mostrar'}
+                              >
+                                {sub.visible ? <Eye /> : <EyeOff />}
+                              </button>
+                              <button
+                                onClick={() => removeSubreddit(sub.name)}
+                                className="p-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 transition-colors border border-red-500/50 text-red-400"
+                                title="Remover"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="p-6 border-t border-white/10 bg-black/20 flex justify-between items-center">
+                  <button
+                    onClick={clearAllSubreddits}
+                    className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg transition-colors text-sm text-red-400 border border-red-500/50"
+                  >
+                    Limpar Tudo
+                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setShowManageSubreddits(false);
+                        if (visualSubreddits.length > 0) {
+                          fetchPosts();
+                        }
+                      }}
+                      className="px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 rounded-lg transition-all font-medium"
+                    >
+                      Buscar Posts
+                    </button>
+                    <button
+                      onClick={() => setShowManageSubreddits(false)}
+                      className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 rounded-lg transition-all font-medium"
+                    >
+                      Fechar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Main Content */}
+          <div className={`flex-1 flex items-center justify-center p-2 ${!sidebarOpen ? 'ml-0' : ''}`}>
+            <div className={`w-full ${!sidebarOpen ? 'max-w-7xl' : 'max-w-6xl'}`}>
+              {error && (
+                <div className="mb-4 p-4 bg-red-500/20 border border-red-500/50 rounded-lg">
+                  <p className="text-red-400 font-medium">❌ {error}</p>
+                  <button
+                    onClick={fetchPosts}
+                    className="mt-3 px-4 py-2 bg-red-500/30 hover:bg-red-500/40 rounded-lg transition-colors text-sm flex items-center gap-2"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Tentar novamente
+                  </button>
+                </div>
+              )}
+
+              {loading && !currentPost ? (
+                <div className="text-center">
+                  <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-orange-500 border-t-transparent"></div>
+                  <p className="mt-4 text-gray-400">Testando métodos de conexão...</p>
+                  <p className="mt-2 text-sm text-gray-500">Verifique os logs acima</p>
+                </div>
+              ) : currentPost ? (
+                <div className="space-y-2">
+                  <div className="bg-black/40 rounded-xl border border-white/10 shadow-2xl overflow-hidden">
+                    {/* Mídia */}
+                    <div className="relative bg-black flex items-center justify-center" style={{ minHeight: '300px', maxHeight: sidebarOpen ? '65vh' : '75vh' }}>
+                      {currentPost.over_18 && (
+                        <div className="absolute top-4 right-4 z-10">
+                          <span className="px-3 py-1 bg-red-600 text-white text-xs font-bold rounded-full shadow-lg border-2 border-red-400">
+                            🔞 NSFW
+                          </span>
+                        </div>
+                      )}
+                      {renderMedia()}
+                    </div>
+
+                    {/* Rodapé - SEMPRE visível */}
+                    <div className="p-4 bg-black/90 border-t border-white/10">
+                      <h2 className="text-lg font-semibold mb-2 line-clamp-2">
+                        {currentPost.title}
+                      </h2>
+                      <div className="flex items-center gap-4 text-sm text-gray-400">
+                        <span className="flex items-center gap-1">
+                          👍 {currentPost.ups?.toLocaleString() || 0}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          💬 {currentPost.num_comments?.toLocaleString() || 0}
+                        </span>
+                        <span className="text-purple-400">
+                          r/{currentPost.subreddit}
+                        </span>
+                        <a
+                          href={`https://reddit.com${currentPost.permalink}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ml-auto text-orange-400 hover:text-orange-300 transition-colors font-medium"
+                        >
+                          Ver no Reddit →
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center text-gray-400">
+                  <p>Nenhum post visual encontrado.</p>
+                  <button
+                    onClick={fetchPosts}
+                    className="mt-4 px-6 py-3 rounded-full bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 transition-all"
+                  >
+                    Tentar novamente
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<RedditVisualViewer />);
+  </script>
+</body>
+</html>
