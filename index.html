@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reddit Visual Viewer</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Reddit Visual Viewer v2.0</title>
 
   <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -27,7 +30,7 @@
   <div id="root"></div>
 
   <!-- Lucide Icons (compatível com CDN) -->
-  <script type="text/babel" data-type="module">
+  <script type="text/babel" data-type="module" data-presets="react" key="app-v2">
     const { useState, useEffect, useCallback, useRef } = React;
 
     // Ícones simplificados (substituindo lucide-react)
@@ -141,6 +144,13 @@
       const [sidebarOpen, setSidebarOpen] = useState(true);
       const [editingSubId, setEditingSubId] = useState(null);
       const [editingName, setEditingName] = useState('');
+
+      // Sistema anti-repetição
+      const [viewedPostIds, setViewedPostIds] = useState(new Set());
+      const [showStats, setShowStats] = useState(false);
+
+      // Debug: confirmar que estado foi criado
+      console.log('🔍 Estado showStats criado:', showStats);
 
       // Estado dos subreddits - carregados da API
       const [subredditsList, setSubredditsList] = useState([]);
@@ -395,6 +405,45 @@
         };
       };
 
+      // Função para intercalar posts de diferentes subreddits de forma equilibrada
+      const interleavePostsBySubreddit = (posts) => {
+        // Agrupar posts por subreddit
+        const postsBySubreddit = {};
+        posts.forEach(post => {
+          const sub = post.subreddit;
+          if (!postsBySubreddit[sub]) {
+            postsBySubreddit[sub] = [];
+          }
+          postsBySubreddit[sub].push(post);
+        });
+
+        // Embaralhar posts dentro de cada subreddit
+        Object.keys(postsBySubreddit).forEach(sub => {
+          postsBySubreddit[sub].sort(() => Math.random() - 0.5);
+        });
+
+        // Intercalar posts usando round-robin
+        const result = [];
+        const subreddits = Object.keys(postsBySubreddit);
+        let hasMorePosts = true;
+
+        while (hasMorePosts) {
+          hasMorePosts = false;
+
+          // Embaralhar ordem dos subreddits a cada iteração para adicionar aleatoriedade
+          const shuffledSubs = [...subreddits].sort(() => Math.random() - 0.5);
+
+          for (const sub of shuffledSubs) {
+            if (postsBySubreddit[sub].length > 0) {
+              result.push(postsBySubreddit[sub].shift());
+              hasMorePosts = true;
+            }
+          }
+        }
+
+        return result;
+      };
+
       const fetchPosts = async () => {
         if (visualSubreddits.length === 0) {
           addDebugLog('⚠️ Nenhum subreddit na lista para buscar');
@@ -413,7 +462,7 @@
           // Buscar de cada subreddit usando APENAS o backend local (com cache)
           for (const subreddit of visualSubreddits) {
             try {
-              const url = `http://localhost:3333/api/reddit/${subreddit}/${sortBy}?limit=50&nsfw=${nsfwFilter}`;
+              const url = `http://localhost:3333/api/reddit/${subreddit}/${sortBy}?limit=100&nsfw=${nsfwFilter}`;
 
               const response = await fetch(url);
 
@@ -459,13 +508,20 @@
           if (allPosts.length > 0) {
             addDebugLog(`✅ Total: ${allPosts.length} posts carregados`);
 
-            // Embaralhar posts para misturar subreddits
-            const shuffled = allPosts.sort(() => Math.random() - 0.5);
-            setPosts(shuffled);
+            // Intercalar posts de diferentes subreddits de forma equilibrada
+            const interleaved = interleavePostsBySubreddit(allPosts);
+            setPosts(interleaved);
 
-            const randomPost = shuffled[Math.floor(Math.random() * shuffled.length)];
+            // Resetar histórico de posts vistos ao buscar novos
+            setViewedPostIds(new Set());
+
+            const randomPost = interleaved[Math.floor(Math.random() * interleaved.length)];
             setCurrentPost(randomPost);
-            addDebugLog(`📍 r/${randomPost.subreddit} - ${randomPost.title.substring(0, 50)}...`);
+
+            // Marcar primeiro post como visto
+            setViewedPostIds(new Set([randomPost.id]));
+
+            addDebugLog(`📍 r/${randomPost.subreddit} - ${randomPost.title.substring(0, 50)}... (${interleaved.length - 1} restantes)`);
 
             setLoading(false);
             return;
@@ -496,11 +552,49 @@
 
       const nextPost = useCallback(() => {
         if (posts.length > 0) {
-          const randomIndex = Math.floor(Math.random() * posts.length);
-          setCurrentPost(posts[randomIndex]);
-          addDebugLog(`Próximo post: ${posts[randomIndex].title.substring(0, 50)}...`);
+          // Filtrar posts não vistos
+          const unviewedPosts = posts.filter(post => !viewedPostIds.has(post.id));
+
+          // Se todos foram vistos, resetar histórico e começar de novo
+          if (unviewedPosts.length === 0) {
+            addDebugLog('🔄 Todos os posts vistos! Resetando histórico...');
+            setViewedPostIds(new Set());
+            const randomIndex = Math.floor(Math.random() * posts.length);
+            const selectedPost = posts[randomIndex];
+            setCurrentPost(selectedPost);
+            setViewedPostIds(new Set([selectedPost.id]));
+            addDebugLog(`📍 r/${selectedPost.subreddit} - ${selectedPost.title.substring(0, 50)}...`);
+            return;
+          }
+
+          // Selecionar post aleatório dos não vistos
+          const randomIndex = Math.floor(Math.random() * unviewedPosts.length);
+          const selectedPost = unviewedPosts[randomIndex];
+          setCurrentPost(selectedPost);
+
+          // Marcar como visto
+          setViewedPostIds(prev => new Set([...prev, selectedPost.id]));
+
+          const remainingPosts = unviewedPosts.length - 1;
+          addDebugLog(`📍 r/${selectedPost.subreddit} - ${selectedPost.title.substring(0, 50)}... (${remainingPosts} restantes)`);
+
+          // Auto-refresh: buscar novos posts quando restar menos de 20%
+          const percentageRemaining = (remainingPosts / posts.length) * 100;
+          if (percentageRemaining < 20 && percentageRemaining > 0) {
+            addDebugLog('⚠️ Poucos posts restantes, considere buscar novos posts!');
+          }
         }
-      }, [posts, addDebugLog]);
+      }, [posts, viewedPostIds, addDebugLog]);
+
+      // Função para resetar histórico de posts vistos
+      const resetHistory = useCallback(() => {
+        setViewedPostIds(new Set());
+        addDebugLog('🔄 Histórico de posts vistos resetado!');
+        if (posts.length > 0 && currentPost) {
+          // Marcar apenas o post atual como visto
+          setViewedPostIds(new Set([currentPost.id]));
+        }
+      }, [posts, currentPost, addDebugLog]);
 
       // Buscar posts apenas quando mudar sortBy ou nsfwFilter manualmente
       const hasInitialFetch = useRef(false);
@@ -650,6 +744,54 @@
                   <RefreshCw className={loading ? 'animate-spin' : ''} />
                   <span>{loading ? 'Atualizando...' : 'Buscar Novos'}</span>
                 </button>
+
+                {/* Botão de Estatísticas */}
+                <button
+                  onClick={() => setShowStats(!showStats)}
+                  className="w-full px-4 py-3 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 transition-all flex items-center justify-center gap-3"
+                >
+                  <List />
+                  <span>{showStats ? 'Ocultar Stats' : 'Ver Stats'}</span>
+                </button>
+
+                {/* Painel de Estatísticas */}
+                {showStats && posts.length > 0 && (
+                  <div className="p-4 bg-gradient-to-br from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-lg space-y-3">
+                    <div className="text-sm font-medium text-blue-300 mb-2">📊 Estatísticas</div>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-300">Total de posts:</span>
+                        <span className="font-bold text-white">{posts.length}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-300">Posts vistos:</span>
+                        <span className="font-bold text-green-400">{viewedPostIds.size}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-300">Posts restantes:</span>
+                        <span className="font-bold text-orange-400">{posts.length - viewedPostIds.size}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-300">Progresso:</span>
+                        <span className="font-bold text-purple-400">
+                          {((viewedPostIds.size / posts.length) * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="w-full bg-gray-700 rounded-full h-2 mt-3">
+                      <div
+                        className="bg-gradient-to-r from-green-500 to-blue-500 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${(viewedPostIds.size / posts.length) * 100}%` }}
+                      ></div>
+                    </div>
+                    <button
+                      onClick={resetHistory}
+                      className="w-full mt-3 px-3 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-lg transition-all text-sm font-medium text-red-300"
+                    >
+                      🔄 Resetar Histórico
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Divider */}
