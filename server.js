@@ -159,6 +159,62 @@ app.delete('/api/subreddits/:id', async (req, res) => {
   }
 });
 
+// Rotação aleatória de 20 subreddits
+app.post('/api/subreddits/rotate-random', async (req, res) => {
+  const { excludeIds } = req.body; // IDs para excluir (últimos usados)
+  const count = 20;
+
+  try {
+    // Primeiro, ocultar todos
+    await pool.execute('UPDATE subreddits SET visible = FALSE');
+
+    // Montar query para selecionar 20 aleatórios excluindo os IDs passados
+    let query = 'SELECT id, name FROM subreddits';
+    let params = [];
+
+    if (excludeIds && excludeIds.length > 0) {
+      const placeholders = excludeIds.map(() => '?').join(',');
+      query += ` WHERE id NOT IN (${placeholders})`;
+      params = [...excludeIds];
+    }
+
+    query += ` ORDER BY RAND() LIMIT ${count}`;
+
+    const [selected] = await pool.execute(query, params);
+
+    // Se não conseguiu 20, pegar o que tem
+    if (selected.length === 0) {
+      // Se não há subreddits disponíveis, resetar e tentar novamente
+      const [allSubs] = await pool.execute(
+        'SELECT id, name FROM subreddits ORDER BY RAND() LIMIT ?',
+        [count]
+      );
+      selected.push(...allSubs);
+    }
+
+    // Tornar os selecionados visíveis
+    const selectedIds = selected.map(s => s.id);
+    if (selectedIds.length > 0) {
+      const placeholders = selectedIds.map(() => '?').join(',');
+      await pool.execute(
+        `UPDATE subreddits SET visible = TRUE WHERE id IN (${placeholders})`,
+        selectedIds
+      );
+    }
+
+    console.log(`🎲 Rotação: ${selected.length} subreddits selecionados`);
+
+    res.json({
+      message: `${selected.length} subreddits selecionados aleatoriamente`,
+      subreddits: selected.map(s => ({ id: s.id, name: s.name, visible: true }))
+    });
+
+  } catch (error) {
+    console.error('Erro ao fazer rotação:', error);
+    res.status(500).json({ error: 'Erro ao fazer rotação de subreddits' });
+  }
+});
+
 // ========== ROTAS DO REDDIT ==========
 
 // Rota para buscar posts do Reddit (com cache)

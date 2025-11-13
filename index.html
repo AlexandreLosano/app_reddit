@@ -136,8 +136,10 @@
       const [loading, setLoading] = useState(true);
       const [error, setError] = useState(null);
       const [interval, setIntervalTime] = useState(5);
+      const [gifInterval, setGifIntervalTime] = useState(15); // Tempo para GIFs (em segundos)
       const [sortBy, setSortBy] = useState('hot');
       const [nsfwFilter, setNsfwFilter] = useState('all');
+      const [mediaFilter, setMediaFilter] = useState('all'); // all, images, gifs
       const [debugInfo, setDebugInfo] = useState([]);
       const [showManageSubreddits, setShowManageSubreddits] = useState(false);
       const [newSubreddit, setNewSubreddit] = useState('');
@@ -151,6 +153,12 @@
 
       // Estado dos subreddits - carregados da API
       const [subredditsList, setSubredditsList] = useState([]);
+
+      // Histórico de rotações (últimos 40 IDs usados)
+      const [rotationHistory, setRotationHistory] = useState([]);
+
+      // Estado de notificação
+      const [notification, setNotification] = useState(null);
 
       // Subreddits visíveis (para compatibilidade com o código existente)
       const visualSubreddits = subredditsList.filter(sub => sub.visible).map(sub => sub.name);
@@ -166,7 +174,7 @@
       useEffect(() => {
         const loadSubreddits = async () => {
           try {
-            const response = await fetch('http://localhost:3333/api/subreddits');
+            const response = await fetch('/api/subreddits');
             if (response.ok) {
               const data = await response.json();
               setSubredditsList(data);
@@ -195,7 +203,7 @@
         }
 
         try {
-          const response = await fetch('http://localhost:3333/api/subreddits', {
+          const response = await fetch('/api/subreddits', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: cleanName, visible: true })
@@ -219,7 +227,7 @@
         if (!sub) return;
 
         try {
-          const response = await fetch(`http://localhost:3333/api/subreddits/${sub.id}`, {
+          const response = await fetch(`/api/subreddits/${sub.id}`, {
             method: 'DELETE'
           });
 
@@ -251,7 +259,7 @@
         const newVisible = !sub.visible;
 
         try {
-          const response = await fetch(`http://localhost:3333/api/subreddits/${sub.id}`, {
+          const response = await fetch(`/api/subreddits/${sub.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ visible: newVisible })
@@ -288,7 +296,7 @@
           try {
             // Remover todos os subreddits da API
             for (const sub of subredditsList) {
-              await fetch(`http://localhost:3333/api/subreddits/${sub.id}`, {
+              await fetch(`/api/subreddits/${sub.id}`, {
                 method: 'DELETE'
               });
             }
@@ -327,12 +335,12 @@
 
         try {
           // Deletar o antigo
-          await fetch(`http://localhost:3333/api/subreddits/${subId}`, {
+          await fetch(`/api/subreddits/${subId}`, {
             method: 'DELETE'
           });
 
           // Criar novo com o nome atualizado
-          const response = await fetch('http://localhost:3333/api/subreddits', {
+          const response = await fetch('/api/subreddits', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: cleanName, visible: true })
@@ -350,6 +358,57 @@
           }
         } catch (error) {
           addDebugLog(`❌ Erro ao editar: ${error.message}`);
+        }
+      };
+
+      // Mostrar notificação
+      const showNotification = (message, duration = 5000) => {
+        setNotification(message);
+        setTimeout(() => setNotification(null), duration);
+      };
+
+      // Rotação aleatória de 20 subreddits
+      const rotateRandom20 = async () => {
+        try {
+          addDebugLog('🎲 Iniciando rotação de 20 subreddits aleatórios...');
+
+          // Chamar API para fazer rotação excluindo os últimos 40 usados
+          const response = await fetch('/api/subreddits/rotate-random', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ excludeIds: rotationHistory })
+          });
+
+          if (!response.ok) {
+            throw new Error('Erro ao fazer rotação');
+          }
+
+          const data = await response.json();
+          addDebugLog(`✅ ${data.subreddits.length} subreddits selecionados`);
+
+          // Recarregar lista de subreddits
+          const subsResponse = await fetch('/api/subreddits');
+          if (subsResponse.ok) {
+            const updatedSubs = await subsResponse.json();
+            setSubredditsList(updatedSubs);
+          }
+
+          // Atualizar histórico de rotação (manter últimos 40 IDs)
+          const newIds = data.subreddits.map(s => s.id);
+          const newHistory = [...newIds, ...rotationHistory].slice(0, 40);
+          setRotationHistory(newHistory);
+
+          // Carregar posts dos novos subreddits em background
+          addDebugLog('📦 Carregando posts dos novos subreddits...');
+          await fetchPosts();
+
+          // Mostrar notificação
+          showNotification(`🎲 Novos 20 subreddits carregados! Diversão garantida!`);
+          addDebugLog('🎉 Rotação concluída com sucesso!');
+
+        } catch (error) {
+          addDebugLog(`❌ Erro na rotação: ${error.message}`);
+          showNotification('❌ Erro ao fazer rotação de subreddits');
         }
       };
 
@@ -451,7 +510,7 @@
 
         setLoading(true);
         setError(null);
-        addDebugLog(`🚀 Buscando ${visualSubreddits.length} subreddits (Sort: ${sortBy}, NSFW: ${nsfwFilter})`);
+        addDebugLog(`🚀 Buscando ${visualSubreddits.length} subreddits (Sort: ${sortBy}, NSFW: ${nsfwFilter}, Mídia: ${mediaFilter})`);
 
         let allPosts = [];
 
@@ -459,7 +518,7 @@
           // Buscar de cada subreddit usando APENAS o backend local (com cache)
           for (const subreddit of visualSubreddits) {
             try {
-              const url = `http://localhost:3333/api/reddit/${subreddit}/${sortBy}?limit=100&nsfw=${nsfwFilter}`;
+              const url = `/api/reddit/${subreddit}/${sortBy}?limit=100&nsfw=${nsfwFilter}`;
 
               const response = await fetch(url);
 
@@ -478,16 +537,21 @@
               const subredditPosts = data.data.children
                 .map(child => child.data)
                 .filter(post => {
+                  const isGif = post.url && (post.url.includes('.gif') || post.url.includes('.gifv'));
                   const hasImage = post.post_hint === 'image' ||
-                                  (post.url && post.url.match(/\.(jpeg|jpg|gif|png|webp)$/i));
+                                  (post.url && post.url.match(/\.(jpeg|jpg|png|webp)$/i));
                   const hasVideo = post.is_video;
-                  const hasGif = post.url && post.url.includes('.gif');
 
-                  if (!hasImage && !hasVideo && !hasGif) return false;
+                  // Deve ter algum tipo de mídia visual
+                  if (!hasImage && !hasVideo && !isGif) return false;
 
                   // Aplicar filtro NSFW
                   if (nsfwFilter === 'sfw' && post.over_18) return false;
                   if (nsfwFilter === 'nsfw' && !post.over_18) return false;
+
+                  // Aplicar filtro de tipo de mídia
+                  if (mediaFilter === 'images' && (isGif || hasVideo)) return false;
+                  if (mediaFilter === 'gifs' && !isGif) return false;
 
                   return true;
                 });
@@ -606,26 +670,45 @@
         }
       }, [visualSubreddits.length]);
 
-      // Quando mudar sort ou nsfw, buscar novamente
+      // Quando mudar sort, nsfw ou media filter, buscar novamente
       const prevSort = useRef(sortBy);
       const prevNsfw = useRef(nsfwFilter);
+      const prevMedia = useRef(mediaFilter);
       useEffect(() => {
         if (hasInitialFetch.current && visualSubreddits.length > 0) {
-          if (prevSort.current !== sortBy || prevNsfw.current !== nsfwFilter) {
+          if (prevSort.current !== sortBy || prevNsfw.current !== nsfwFilter || prevMedia.current !== mediaFilter) {
             prevSort.current = sortBy;
             prevNsfw.current = nsfwFilter;
+            prevMedia.current = mediaFilter;
             fetchPosts();
           }
         }
-      }, [sortBy, nsfwFilter, visualSubreddits.length]);
+      }, [sortBy, nsfwFilter, mediaFilter, visualSubreddits.length]);
 
       useEffect(() => {
         let timer;
-        if (isPlaying && posts.length > 0) {
-          timer = setInterval(nextPost, interval * 1000);
+        if (isPlaying && posts.length > 0 && currentPost) {
+          // Detectar se é GIF
+          const isGif = currentPost.url && (currentPost.url.includes('.gif') || currentPost.url.includes('.gifv'));
+
+          // Imagens: tempo configurado | GIFs: máximo 15s
+          const waitTime = isGif ? Math.min(gifInterval, 15) : interval;
+
+          addDebugLog(`⏱️ Próximo post em ${waitTime}s (${isGif ? 'GIF' : 'Imagem'})`);
+          timer = setInterval(nextPost, waitTime * 1000);
         }
         return () => clearInterval(timer);
-      }, [isPlaying, interval, nextPost, posts.length]);
+      }, [isPlaying, interval, gifInterval, nextPost, posts.length, currentPost]);
+
+      // Timer de rotação automática a cada 30 minutos
+      useEffect(() => {
+        const rotationTimer = setInterval(() => {
+          addDebugLog('⏰ 30 minutos passados - iniciando rotação automática...');
+          rotateRandom20();
+        }, 30 * 60 * 1000); // 30 minutos
+
+        return () => clearInterval(rotationTimer);
+      }, [rotationHistory]); // Recriar timer quando histórico mudar
 
       const renderMedia = () => {
         if (!currentPost) return null;
@@ -667,7 +750,7 @@
       };
 
       return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex relative">
+        <div className="h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex overflow-hidden relative">
           {/* Sidebar Toggle Button */}
           {!sidebarOpen && (
             <button
@@ -688,7 +771,7 @@
           )}
 
           {/* Sidebar Lateral */}
-          <div className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} fixed lg:relative inset-y-0 left-0 z-40 w-80 bg-black/40 backdrop-blur-sm border-r border-white/10 flex flex-col transition-transform duration-300 ease-in-out`}>
+          <div className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} fixed lg:relative inset-y-0 left-0 z-40 w-80 h-screen bg-black/40 backdrop-blur-sm border-r border-white/10 flex flex-col transition-transform duration-300 ease-in-out`}>
             {/* Header da Sidebar */}
             <div className="p-6 border-b border-white/10">
               <div className="flex items-start justify-between">
@@ -753,40 +836,39 @@
 
                 {/* Painel de Estatísticas */}
                 {showStats && posts.length > 0 && (
-                  <div className="p-4 bg-gradient-to-br from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-lg space-y-3">
-                    <div className="text-sm font-medium text-blue-300 mb-2">📊 Estatísticas</div>
-                    <div className="space-y-2 text-sm">
+                  <div className="p-3 bg-gradient-to-br from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-lg space-y-2">
+                    <div className="text-xs font-medium text-blue-300">📊 Estatísticas</div>
+                    <div className="space-y-1 text-xs">
                       <div className="flex justify-between items-center">
-                        <span className="text-gray-300">Total de posts:</span>
+                        <span className="text-gray-300">Total:</span>
                         <span className="font-bold text-white">{posts.length}</span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-gray-300">Posts vistos:</span>
+                        <span className="text-gray-300">Vistos:</span>
                         <span className="font-bold text-green-400">{viewedPostIds.size}</span>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-gray-300">Posts restantes:</span>
+                        <span className="text-gray-300">Restantes:</span>
                         <span className="font-bold text-orange-400">{posts.length - viewedPostIds.size}</span>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-300">Progresso:</span>
-                        <span className="font-bold text-purple-400">
-                          {((viewedPostIds.size / posts.length) * 100).toFixed(1)}%
-                        </span>
-                      </div>
                     </div>
-                    <div className="w-full bg-gray-700 rounded-full h-2 mt-3">
+                    <div className="w-full bg-gray-700 rounded-full h-1.5 mt-2">
                       <div
-                        className="bg-gradient-to-r from-green-500 to-blue-500 h-2 rounded-full transition-all duration-300"
+                        className="bg-gradient-to-r from-green-500 to-blue-500 h-1.5 rounded-full transition-all duration-300"
                         style={{ width: `${(viewedPostIds.size / posts.length) * 100}%` }}
                       ></div>
                     </div>
-                    <button
-                      onClick={resetHistory}
-                      className="w-full mt-3 px-3 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-lg transition-all text-sm font-medium text-red-300"
-                    >
-                      🔄 Resetar Histórico
-                    </button>
+                    <div className="flex items-center justify-between text-xs pt-1">
+                      <span className="text-purple-400 font-bold">
+                        {((viewedPostIds.size / posts.length) * 100).toFixed(1)}%
+                      </span>
+                      <button
+                        onClick={resetHistory}
+                        className="px-2 py-1 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded transition-all text-xs font-medium text-red-300"
+                      >
+                        🔄 Reset
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -859,8 +941,21 @@
                 </div>
 
                 <div>
+                  <label className="block text-sm font-medium mb-2 text-gray-300">Tipo de Mídia</label>
+                  <select
+                    value={mediaFilter}
+                    onChange={(e) => setMediaFilter(e.target.value)}
+                    className="w-full px-3 py-2 bg-white/10 rounded-lg border border-white/20 focus:border-orange-500 focus:outline-none text-white"
+                  >
+                    <option value="all" className="bg-slate-800">🎬 Tudo (Imgs + GIFs)</option>
+                    <option value="images" className="bg-slate-800">🖼️ Apenas Imagens</option>
+                    <option value="gifs" className="bg-slate-800">🎞️ Apenas GIFs</option>
+                  </select>
+                </div>
+
+                <div>
                   <label className="block text-sm font-medium mb-2 text-gray-300">
-                    Intervalo: {interval}s
+                    Intervalo (Imagens): {interval}s
                   </label>
                   <input
                     type="range"
@@ -868,6 +963,20 @@
                     max="30"
                     value={interval}
                     onChange={(e) => setIntervalTime(Number(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-gray-300">
+                    Intervalo (GIFs): {Math.min(gifInterval, 15)}s {gifInterval > 15 && <span className="text-xs text-orange-400">(máx: 15s)</span>}
+                  </label>
+                  <input
+                    type="range"
+                    min="5"
+                    max="45"
+                    value={gifInterval}
+                    onChange={(e) => setGifIntervalTime(Number(e.target.value))}
                     className="w-full"
                   />
                 </div>
@@ -1048,12 +1157,24 @@
 
                 {/* Footer */}
                 <div className="p-6 border-t border-white/10 bg-black/20 flex justify-between items-center">
-                  <button
-                    onClick={clearAllSubreddits}
-                    className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg transition-colors text-sm text-red-400 border border-red-500/50"
-                  >
-                    Limpar Tudo
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={clearAllSubreddits}
+                      className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg transition-colors text-sm text-red-400 border border-red-500/50"
+                    >
+                      Limpar Tudo
+                    </button>
+                    <button
+                      onClick={() => {
+                        rotateRandom20();
+                        setShowManageSubreddits(false);
+                      }}
+                      className="px-4 py-2 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 rounded-lg transition-all font-medium text-sm shadow-lg flex items-center gap-2"
+                      title="Escolhe 20 subreddits aleatórios (evita os últimos 40 usados)"
+                    >
+                      🎲 20 Aleatórios
+                    </button>
+                  </div>
                   <div className="flex gap-2">
                     <button
                       onClick={() => {
@@ -1078,9 +1199,19 @@
             </div>
           )}
 
+          {/* Notificação flutuante */}
+          {notification && (
+            <div className="fixed top-4 right-4 z-50 animate-bounce">
+              <div className="bg-gradient-to-r from-green-500 to-emerald-500 text-white px-6 py-4 rounded-lg shadow-2xl border-2 border-white/20 flex items-center gap-3 max-w-md">
+                <span className="text-2xl">🎉</span>
+                <span className="font-medium">{notification}</span>
+              </div>
+            </div>
+          )}
+
           {/* Main Content */}
-          <div className={`flex-1 flex items-center justify-center p-2 ${!sidebarOpen ? 'ml-0' : ''}`}>
-            <div className={`w-full ${!sidebarOpen ? 'max-w-7xl' : 'max-w-6xl'}`}>
+          <div className={`flex-1 h-screen flex flex-col p-4 ${!sidebarOpen ? 'ml-0' : ''}`}>
+            <div className="w-full h-full flex items-center justify-center">
               {error && (
                 <div className="mb-4 p-4 bg-red-500/20 border border-red-500/50 rounded-lg">
                   <p className="text-red-400 font-medium">❌ {error}</p>
@@ -1101,10 +1232,10 @@
                   <p className="mt-2 text-sm text-gray-500">Verifique os logs acima</p>
                 </div>
               ) : currentPost ? (
-                <div className="space-y-2">
-                  <div className="bg-black/40 rounded-xl border border-white/10 shadow-2xl overflow-hidden">
+                <div className="w-full h-full flex items-center justify-center">
+                  <div className="bg-black/40 rounded-xl border border-white/10 shadow-2xl overflow-hidden max-w-full max-h-full">
                     {/* Mídia */}
-                    <div className="relative bg-black flex items-center justify-center" style={{ minHeight: '300px', maxHeight: sidebarOpen ? '65vh' : '75vh' }}>
+                    <div className="relative bg-black flex items-center justify-center" style={{ minHeight: '300px', maxHeight: '85vh' }}>
                       {currentPost.over_18 && (
                         <div className="absolute top-4 right-4 z-10">
                           <span className="px-3 py-1 bg-red-600 text-white text-xs font-bold rounded-full shadow-lg border-2 border-red-400">
@@ -1117,9 +1248,16 @@
 
                     {/* Rodapé - SEMPRE visível */}
                     <div className="p-4 bg-black/90 border-t border-white/10">
-                      <h2 className="text-lg font-semibold mb-2 line-clamp-2">
-                        {currentPost.title}
-                      </h2>
+                      <div className="flex items-center gap-2 mb-2">
+                        <h2 className="text-lg font-semibold line-clamp-2 flex-1">
+                          {currentPost.title}
+                        </h2>
+                        {currentPost.url && (currentPost.url.includes('.gif') || currentPost.url.includes('.gifv')) && (
+                          <span className="px-2 py-1 bg-purple-500/20 border border-purple-500/50 rounded text-xs font-bold text-purple-300 flex-shrink-0">
+                            🎞️ GIF
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-4 text-sm text-gray-400">
                         <span className="flex items-center gap-1">
                           👍 {currentPost.ups?.toLocaleString() || 0}
